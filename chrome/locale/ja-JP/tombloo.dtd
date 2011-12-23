@@ -1,0 +1,19 @@
+<!ENTITY label.tomblooOptions "Tomblooの設定">
+<!ENTITY label.postConfig "デフォルトのポスト先">
+<!ENTITY label.post "ポスト関連">
+<!ENTITY label.entry "エントリ内容/他">
+
+<!ENTITY label.amazonAffiliateId "AmazonアフィリエイトID">
+<!ENTITY label.thumbnailTemplate "Linkポストのサムネイルテンプレート">
+<!ENTITY label.trimReblogInfo "reblog情報を除去する">
+<!ENTITY label.tagProvider "クイックポストで使うタグの取得元">
+<!ENTITY label.tagAutoComplete "タグの自動決定">
+<!ENTITY label.shortcutkey.quickPost.link "ショートカット - Linkクイックポスト">
+<!ENTITY label.shortcutkey.quickPost.regular "ショートカット - Textクイックポスト">
+<!ENTITY label.shortcutkey.checkAndPost "ショートカット(マウス) - 実行場所に適したタイプ">
+<!ENTITY label.accesskey.share "アクセスキー - Share">
+<!ENTITY label.contextMenu.top "コンテキストメニューの最上部に表示する">
+<!ENTITY label.ignoreError "無視するエラー(正規表現)">
+<!ENTITY label.dataDir "データ/スクリプトディレクトリ">
+<!ENTITY label.example "例:">
+<!ENTITY label.browse "参照...">

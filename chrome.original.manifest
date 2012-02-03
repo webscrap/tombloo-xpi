@@ -9,5 +9,3 @@ overlay   chrome://browser/content/browser.xul  chrome://tombloo/content/browser
 locale    tombloo  en-US  chrome/locale/en-US/
 locale    tombloo  ja-JP  chrome/locale/ja-JP/
 
-# GENERATED
-content tombloo-patch file:////home/xiaoranzzz/.mozilla/firefox/profiles/afun/tombloo/

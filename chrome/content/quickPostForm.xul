@@ -44,14 +44,17 @@
 							<image id="close" class="button image-button" onclick="dialogPanel? dialogPanel.close() : window.close()"/>
 						</vbox>
 					</hbox>
-					
+					<hbox>	
 					<vbox id="form" flex="1"/>
 					
-					<vbox id="control" >
+					<box class="snap-top-left" style="width:2em;" />
+					<vbox id="control" style="width:10em;" >
+						<box flex="1" />
 						<description id="posters" pack="top" align="top" />
-						<textbox id="message" multiline="true" wrap="off" readonly="true"/>
+						<textbox id="message" multiline="true" wrap="on" readonly="true"/>
 						<button id="post" label="Post" />
 					</vbox>
+					</hbox>
 				</vbox>
 				<vbox>
 					<box class="snap-top-right" style="height: 4em;" />

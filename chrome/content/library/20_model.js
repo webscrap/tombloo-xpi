@@ -933,16 +933,17 @@ models.register({
 	},
 	
 	getUserTags : function(){
-		return request('https://www.google.com/bookmarks/api/bookmark', {
+		return request('https://www.google.com/bookmarks/mark', {
 			queryString : {
-				op : 'LIST_LABELS',
+				op : 'add'
 			}
 		}).addCallback(function(res){
-			var data = JSON.parse(res.responseText);
-			return zip(data['labels'], data['counts']).map(function(pair){
+			var doc = convertToHTMLDocument(res.responseText);
+			return $x("//div[@id='sidenav']//a[contains(@href, 'q=label')]", doc, true).map(function(elmTag){
+				var tokens = elmTag.textContent.match(/(.+)\((\d+)\)/);
 				return {
-					name      : pair[0],
-					frequency : pair[1],
+					name      : tokens[1].trim(),
+					frequency : tokens[2],
 				};
 			});
 		});
@@ -2303,6 +2304,44 @@ models.register({
 					uri   : ps.itemUrl,
 					quote : joinText([ps.body, ps.description], ' ', true),
 				},
+			});
+		});
+	},
+});
+
+models.register({
+	name : '絶対復習',
+	URL  : 'http://brushup.narihiro.info',
+	ICON : 'chrome://tombloo/skin/item.ico',
+	
+	getAuthCookie : function(){
+		return getCookieString('brushup.narihiro.info', 'brushup_auth_token').split('=').pop();
+	},
+	
+	check: function(ps) {
+		return (/(regular|link|quote)/).test(ps.type) && !ps.file;
+	},
+	
+	post: function(ps) {
+		return this.add(ps.item, joinText([ps.itemUrl, ps.body, ps.description], '\n'), ps.tags);
+	},
+	
+	add : function(title, description, tags){
+		var self = this;
+		return request(this.URL + '/reminders/new').addCallback(function(res){
+			if(res.channel.URI.asciiSpec.match('login'))
+				throw new Error(getMessage('error.notLoggedin'));
+			
+			var doc = convertToHTMLDocument(res.responseText);
+			var form = formContents(doc);
+			
+			return request(self.URL + $x('id("new_reminder")/@action', doc), {
+				redirectionLimit : 0,
+				sendContent : update(form, {
+					'reminder[title]'    : title,
+					'reminder[body]'     : description,
+					'reminder[tag_list]' : joinText(tags, ' '),
+				}),
 			});
 		});
 	},

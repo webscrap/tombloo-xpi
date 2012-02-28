@@ -3,7 +3,7 @@
 <RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
      xmlns:em="http://www.mozilla.org/2004/em-rdf#">
 	<Description about="urn:mozilla:install-manifest">
-		<em:id>tombloo@myplace.hell</em:id>
+		<em:id>tombloo@brasil.to</em:id>
 		<em:type>2</em:type>
 		<em:name>Tombloo</em:name>
 		<em:version>0.4.29</em:version>
@@ -13,7 +13,6 @@
 		<em:iconURL>chrome://tombloo/skin/tombloo_32.png</em:iconURL>
 		<em:optionsURL>chrome://tombloo/content/prefs.xul</em:optionsURL>
 		<em:aboutURL>chrome://tombloo/content/about.xul</em:aboutURL>
-		
 		<em:targetApplication>
 			<Description>
 				<em:id>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</em:id>

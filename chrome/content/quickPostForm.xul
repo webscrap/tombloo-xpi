@@ -44,14 +44,13 @@
 							<image id="close" class="button image-button" onclick="dialogPanel? dialogPanel.close() : window.close()"/>
 						</vbox>
 					</hbox>
-					<hbox>	
-					<vbox id="form" flex="1"/>
+					<hbox flex="1">	
+					<vbox id="form" flex="2"/>
 					
 					<box class="snap-top-left" style="width:2em;" />
-					<vbox id="control" style="width:10em;" >
-						<box flex="1" />
-						<description id="posters" pack="top" align="top" />
-						<textbox id="message" multiline="true" wrap="on" readonly="true"/>
+					<vbox id="control" flex="1" style="width:10em;" >
+						<description id="posters" pack="top" align="top" flex="1" />
+						<textbox id="message" multiline="true" wrap="on" readonly="true" flex="1"/>
 						<button id="post" label="Post" />
 					</vbox>
 					</hbox>
@@ -85,6 +84,10 @@ env.extend(this, env, false);
 <script><![CDATA[
 
 var ps = arguments[0];
+if(ps.item) {
+	ps.item = ps.item.replace(/\s+-\s+[^-]+$/,'','g');
+}
+
 var position = arguments[1];
 var message = arguments[2];
 

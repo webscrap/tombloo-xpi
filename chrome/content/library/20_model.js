@@ -1807,23 +1807,23 @@ models.register({
 
 
 models.register({
-	name : 'ReadItLater',
-	ICON : 'http://readitlaterlist.com/favicon.ico',
+	name : 'Pocket',
+	ICON : 'http://getpocket.com/favicon.ico',
 	check : function(ps){
 		return /quote|link/.test(ps.type);
 	},
 	post : function(ps){
-		return request('http://readitlaterlist.com/edit').addCallback(function(res) {
+		return request('http://getpocket.com/edit.php').addCallback(function(res) {
 			var doc = convertToHTMLDocument(res.responseText);
 			var form = $x('id("content")/form', doc);
 			if(/login/.test(form.action))
 				throw new Error(getMessage('error.notLoggedin'));
 			
-			return request('http://readitlaterlist.com/edit_process.php', {
-				queryString: {
+			return request('http://getpocket.com/edit_process.php', {
+				queryString : {
 					BL : 1
 				},
-				sendContent: update(formContents(form), {
+				sendContent : update(formContents(form), {
 					tags  : ps.tags? ps.tags.join(',') : '',
 					title : ps.item,
 					url   : ps.itemUrl
@@ -1996,7 +1996,7 @@ models.register({
 			charset     : 'utf-8',
 			sendContent : ps
 		}).addCallback(function(res){
-			return convertToXML(res.responseText);
+			return convertToDOM(res.responseText);
 		});
 	},
 	
@@ -2004,14 +2004,14 @@ models.register({
 		return this.parse({
 			sentence : str,
 			response : 'reading',
-		}).addCallback(function(res){
-			return list(res.ma_result.word_list.word.reading);
+		}).addCallback(function(dom){
+			return $x('//reading/text()', dom, true);
 		});
 	},
 	
 	getRomaReadings : function(str){
-		return this.getKanaReadings(str).addCallback(function(rs){
-			return rs.join('\u0000').toRoma().split('\u0000');
+		return this.getKanaReadings(str).addCallback(function(readings){
+			return readings.join('\u0000').toRoma().split('\u0000');
 		});
 	},
 });

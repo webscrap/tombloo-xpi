@@ -85,7 +85,7 @@ env.extend(this, env, false);
 
 var ps = arguments[0];
 if(ps.item) {
-	ps.item = ps.item.replace(/\s+-\s+[^-]+$/,'','g');
+	//ps.item = ps.item.replace(/\s+-\s+[^-]+$/,'','g');
 }
 
 var position = arguments[1];

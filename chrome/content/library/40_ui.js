@@ -247,8 +247,8 @@ connect(grobal, 'browser-load', function(e){
 		if(e.eventPhase != Event.AT_TARGET || (context && context.target == cwin.gContextMenu.target))
 			return;
 		
-		var doc = wrappedObject(cwin.gContextMenu.target.ownerDocument);
-		var win = wrappedObject(doc.defaultView);
+		var doc = cwin.gContextMenu.target.ownerDocument;
+		var win = doc.defaultView;
 		try{
 			win.location.host;
 			
@@ -268,7 +268,7 @@ connect(grobal, 'browser-load', function(e){
 			window    : win,
 			title     : doc.title,
 			selection : ''+win.getSelection(),
-			target    : wrappedObject(cwin.gContextMenu.target),
+			target    : cwin.gContextMenu.target,
 			mouse     : {
 				page   : {x : e.pageX, y : e.pageY},
 				screen : {x : e.screenX, y : e.screenY},
@@ -376,6 +376,8 @@ connect(grobal, 'browser-load', function(e){
 		e.target.action.execute(context);
 	}, true);
 	
+	checkNews();
+	
 	function createActionMenu(root, ctx){
 		var doc = root.ownerDocument;
 		var df = doc.createDocumentFragment();
@@ -407,6 +409,30 @@ connect(grobal, 'browser-load', function(e){
 		root.appendChild(df);
 	}
 });
+
+function checkNews(){
+	// 前回のチェックから一定期間が経過していないか?
+	var checkPeriod = getPref('news.checkPeriod') || (1 * 24 * 60 * 60 * 1000);
+	var lastCheck = getPref('news.lastCheck') || 0;
+	var now = Date.now();
+	if((now - lastCheck) < checkPeriod)
+		return;
+	
+	// INT型を超えるため文字列で保存する
+	setPref('news.lastCheck', ''+now)
+	
+	var url = getPref('news.url');
+	request(url).addCallback(function(res){
+		// ニュースに変更が無いか?
+		var hash = res.responseText.md5();
+		if(hash == getPref('news.hash'))
+			return;
+		
+		setPref('news.hash', hash);
+		
+		addTab(url);
+	});
+}
 
 function connectToBrowser(win){
 	// パフォーマンスを考慮しconnectしているものがいなければウォッチしない

@@ -1,141 +1,10 @@
 if(typeof(models)=='undefined')
 	this.models = models = new Repository();
-
 var Tumblr = update({}, AbstractSessionService, {
 	name : 'Tumblr',
 	ICON : 'http://www.tumblr.com/images/favicon.gif',
-	MEDIA_URL : 'http://media.tumblr.com/',
-	TUMBLR_URL : 'http://www.tumblr.com/',
-	PAGE_LIMIT : 50,
-	
-	/**
-	 * 各Tumblrの基本情報(総件数/タイトル/タイムゾーン/名前)を取得する。
-	 *
-	 * @param {String} user ユーザー名。
-	 * @return {Object} ポスト共通情報。ポストID、タイプ、タグなどを含む。
-	 */
-	getInfo : function(user, type){
-		return request('http://'+user+'.tumblr.com/api/read', {
-			queryString : {
-				type  : type,
-				start : 0,
-				num   : 0,
-			}
-		}).addCallback(function(res){
-			var doc = convertToDOM(res.responseText);
-			var posts = doc.querySelector('posts');
-			var tumblelog = doc.querySelector('tumblelog');
-			return {
-				type     : posts ? posts.getAttribute('type') : '',
-				start    :  1 * posts ? posts.getAttribute('start') : '',
-				total    :  1 * posts ? posts.getAttribute('total') : '',
-				name     : tumblelog ? tumblelog.getAttribute('name') : '',
-				title    : tumblelog ? tumblelog.getAttribute('title') : '',
-				timezone : tumblelog ? tumblelog.getAttribute('timezone') : '',
-			};
-		});
-	},
-	
-	/**
-	 * Tumblr APIからポストデータを取得する。
-	 *
-	 * @param {String} user ユーザー名。
-	 * @param {optional String} type ポストタイプ。未指定の場合、全タイプとなる。
-	 * @param {String} count 先頭から何件を取得するか。
-	 * @param {Function} handler 
-	 *        各ページ個別処理関数。段階的に処理を行う場合に指定する。
-	 *        ページ内の全ポストが渡される。
-	 * @return {Deferred} 取得した全ポストが渡される。
-	 */
-	read : function(user, type, count, handler){
-		// FIXME: ストリームにする
-		var pages = Tumblr._splitRequests(count);
-		var result = [];
-		
-		var d = succeed();
-		d.addCallback(function(){
-			// 全ページを繰り返す
-			return deferredForEach(pages, function(page, pageNum){
-				// ページを取得する
-				return request('http://'+user+'.tumblr.com/api/read', {
-					queryString : {
-						type  : type,
-						start : page[0],
-						num   : page[1],
-					},
-				}).addCallback(function(res){
-					var doc = convertToDOM(res.responseText);
-					
-					// 全ポストを繰り返す
-					var posts = map(function(post){
-						var info = {
-							user : user,
-							id   : post.getAttribute('id'),
-							url  : post.getAttribute('url'),
-							date : post.getAttribute('date'),
-							type : post.getAttribute('type'),
-							tags : map(function(tag){return tag.textContent}, post.querySelectorAll('tag')),
-						};
-						
-						return Tumblr[info.type.capitalize()].convertToModel(post, info);
-					}, doc.querySelectorAll('posts > post'));
-					
-					result = result.concat(posts);
-					
-					return handler && handler(posts, (pageNum * Tumblr.PAGE_LIMIT));
-				}).addCallback(wait, 1); // ウェイト
-			});
-		});
-		d.addErrback(function(err){
-			if(err.message!=StopProcess)
-				throw err;
-		})
-		d.addCallback(function(){
-			return result;
-		});
-		
-		return d;
-	},
-	
-	/**
-	 * API読み込みページリストを作成する。
-	 * TumblrのAPIは120件データがあるとき、100件目から50件を読もうとすると、
-	 * 差し引かれ70件目から50件が返ってくる。
-	 *
-	 * @param {Number} count 読み込み件数。
-	 * @return {Array}
-	 */
-	_splitRequests : function(count){
-		var res = [];
-		var limit = Tumblr.PAGE_LIMIT;
-		for(var i=0,len=Math.ceil(count/limit) ; i<len ; i++){
-			res.push([i*limit, limit]);
-		}
-		count%limit && (res[res.length-1][1] = count%limit);
-		
-		return res;
-	},
-	
-	/**
-	 * ポストを削除する。
-	 *
-	 * @param {Number || String} id ポストID。
-	 * @return {Deferred}
-	 */
-	remove : function(id){
-		var self = this;
-		return this.getToken().addCallback(function(token){
-			return request(Tumblr.TUMBLR_URL+'delete', {
-				redirectionLimit : 0,
-				referrer    : Tumblr.TUMBLR_URL,
-				sendContent : {
-					id          : id,
-					form_key    : token,
-					redirect_to : 'dashboard',
-				},
-			});
-		});
-	},
+	TUMBLR_URL : 'https://www.tumblr.com/',
+	SVC_URL : 'https://www.tumblr.com/svc/',
 	
 	/**
 	 * reblog情報を取り除く。
@@ -144,13 +13,13 @@ var Tumblr = update({}, AbstractSessionService, {
 	 * @return {Deferred}
 	 */
 	trimReblogInfo : function(form){
-		if(!getPref('trimReblogInfo'))
+		if(!getPref('model.tumblr.trimReblogInfo'))
 		 return;
 		 
 		function trimQuote(entry){
 			entry = entry.replace(/<p><\/p>/g, '').replace(/<p><a[^<]+<\/a>:<\/p>/g, '');
-			entry = (function(all, contents){
-				return contents.replace(/<blockquote>(([\n\r]|.)+)<\/blockquote>/gm, arguments.callee);
+			entry = (function callee(all, contents){
+				return contents.replace(/<blockquote>(([\n\r]|.)+)<\/blockquote>/gm, callee);
 			})(null, entry);
 			return entry.trim();
 		}
@@ -181,7 +50,25 @@ var Tumblr = update({}, AbstractSessionService, {
 	check : function(ps){
 		return (/(regular|photo|quote|link|conversation|video)/).test(ps.type);
 	},
-	
+    _post : function (form) {
+       return request(Tumblr.TUMBLR_URL + 'svc/secure_form_key', {
+          method  : 'POST',
+          headers : {
+            'X-tumblr-form-key' : form.form_key
+          }
+        }).addCallback(function (res) {
+          var secure_form_key = res.channel.getResponseHeader('X-tumblr-secure-form-key');
+          return request(Tumblr.TUMBLR_URL + 'svc/post/update', {
+            headers     : {
+			  'Content-Type'     : 'application/json',//; charset=' + charset,
+			  'X-tumblr-form-key' : form.form_key,
+              'X-tumblr-puppies' : secure_form_key,
+			  'X-Requested-With' : 'XMLHttpRequest',
+            },
+			sendContent : JSON.stringify(form),
+          });
+        });
+    },
 	/**
 	 * 新規エントリーをポストする。
 	 *
@@ -196,8 +83,7 @@ var Tumblr = update({}, AbstractSessionService, {
 				update(form, Tumblr[ps.type.capitalize()].convertToForm(ps));
 				
 				self.appendTags(form, ps);
-				
-				return request(endpoint, {sendContent : form});
+				return this._post(form);
 			});
 		});
 	},
@@ -211,27 +97,32 @@ var Tumblr = update({}, AbstractSessionService, {
 	 */
 	getForm : function(url){
 		var self = this;
-		return request(url).addCallback(function(res){
+	    var form = {
+	        form_key: Tumblr.form_key,
+	        channel_id: Tumblr.channel_id,
+	        context_id: '',
+	        context_page: 'dashboard',
+	        custom_tweet: '',
+	        'post[date]': '',
+	        'post[draft_status]': '',
+	        'post[publish_on]': '',
+	        'post[slug]': '',
+	        'is_rich_text[one]': '0',
+	        'is_rich_text[three]': '0',
+	        'is_rich_text[two]': '0',
+	        'post[state]': '0',
+	        allow_photo_replies: '',
+	        send_to_fbog: '',
+	        send_to_twitter:''
+	    };
+		return request(url).addCallback(function (res) {
 			var doc = convertToHTMLDocument(res.responseText);
-			var form = formContents(doc);
-			if(!form['post[type]']){
-				form['post[type]'] = 
-					$x('//*[@id="header"]//select/option[@selected]/text()', doc).trim().toLowerCase();
-			}
-			delete form.preview_post;
-			form.redirect_to = Tumblr.TUMBLR_URL + 'dashboard';
-			
-			if(form.reblog_post_id)
-				self.trimReblogInfo(form);
-			
-			// Tumblrから他サービスへポストするため画像URLを取得しておく
-			if(form['post[type]'] == 'photo'){
-				form.image = $x(
-					'//*[contains(@class, "media_post_external_url")]' +
-					'//img[contains(@src, "media.tumblr.com/") or contains(@src, "data.tumblr.com/")]/@src', doc);
-			}
-			
-			return form;
+		    if ($x('id("logged_out_container")', doc)) {
+				throw new Error(getMessage('error.notLoggedin'));
+	        }
+			form.form_key = Tumblr.form_key = $x('//input[@name="form_key"]/@value', doc);
+	        form.channel_id = Tumblr.channel_id = $x('//input[@name="t"]/@value', doc);
+		    return form;
 		});
 	},
 	
@@ -245,6 +136,22 @@ var Tumblr = update({}, AbstractSessionService, {
 		if(ps.private!=null)
 			form['post[state]'] = (ps.private)? 'private' : 0;
 		
+		if (ps.type !== 'regular' && getPref('model.tumblr.queue')) {
+			form['post[state]'] = 2;
+		}
+		
+		if (getPref('model.tumblr.appendContentSource')) {
+			if (!ps.favorite || !ps.favorite.name || ps.favorite.name !== 'Tumblr') {
+				// not reblog post
+				if (ps.pageUrl && ps.pageUrl !== 'http://') {
+					form['post[source_url]'] = ps.pageUrl;
+					if (ps.type !== 'link') {
+						form['post[three]'] = ps.pageUrl;
+					}
+				}
+			}
+		}
+		
 		return update(form, {
 			'post[tags]' : (ps.tags && ps.tags.length)? joinText(ps.tags, ',') : '',
 		});
@@ -252,7 +159,7 @@ var Tumblr = update({}, AbstractSessionService, {
 	
 	/**
 	 * reblogする。
-	 * Tombloo.Service.extractors.ReBlogの各抽出メソッドを使いreblog情報を抽出できる。
+	 * Extractors.ReBlogの各抽出メソッドを使いreblog情報を抽出できる。
 	 *
 	 * @param {Object} ps
 	 * @return {Deferred}
@@ -299,61 +206,40 @@ var Tumblr = update({}, AbstractSessionService, {
 			default:
 				// このチェックをするためリダイレクトを追う必要がある
 				// You've used 100% of your daily photo uploads. You can upload more tomorrow.
+				if(!res.responseText) {
+					return;
+				}
 				if(res.responseText.match('more tomorrow'))
 					throw new Error("You've exceeded your daily post limit.");
 				
 				var doc = convertToHTMLDocument(res.responseText);
-				throw new Error(convertToPlainText(doc.getElementById('errors')));
+				var err = convertToPlainText(doc.getElementById('errors') || doc.querySelector('.errors'));
+				if(err) {
+					throw new Error(err);
+				}
+				else {
+					return;
+				}
 			}
 		});
 		return d;
 	},
 	
-	openTab : function(ps){
-		if(ps.type == 'reblog')
-			return addTab(Tumblr.TUMBLR_URL + 'reblog/' + ps.token.id + '/' + ps.token.token +'?redirect_to='+encodeURIComponent(ps.pageUrl));
-		
-		var form = Tumblr[ps.type.capitalize()].convertToForm(ps);
-		return addTab(Tumblr.TUMBLR_URL+'new/' + ps.type).addCallback(function(win){
-			withDocument(win.document, function(){
-				populateForm(currentDocument().getElementById('edit_post'), form);
-				
-				var setDisplay = function(id, style){
-					currentDocument().getElementById(id).style.display = style;
-				}
-				switch(ps.type){
-				case 'photo':
-					setDisplay('photo_upload', 'none');
-					setDisplay('photo_url', 'block');
-					
-					setDisplay('add_photo_link', 'none');
-					setDisplay('photo_link', 'block');
-					
-					break;
-				case 'link':
-					setDisplay('add_link_description', 'none');
-					setDisplay('link_description', 'block');
-					break;
-				}
-			});
-		});
-	},
-	
 	getPasswords : function(){
-		return getPasswords('http://www.tumblr.com');
+		return getPasswords('https://www.tumblr.com');
 	},
 	
 	login : function(user, password){
 		var LOGIN_FORM_URL = 'https://www.tumblr.com/login';
-		var LOGIN_EXEC_URL = 'https://www.tumblr.com/svc/account/register';
 		var self = this;
+		notify(self.name, getMessage('message.changeAccount.logout'), self.ICON);
 		return Tumblr.logout().addCallback(function(){
 			return request(LOGIN_FORM_URL).addCallback(function(res){
+				notify(self.name, getMessage('message.changeAccount.login'), self.ICON);
 				var doc = convertToHTMLDocument(res.responseText);
 				var form = doc.getElementById('signup_form');
-				return request(LOGIN_EXEC_URL, {
+				return request(LOGIN_FORM_URL, {
 					sendContent : update(formContents(form), {
-						'action'         : 'signup_login',
 						'user[email]'    : user,
 						'user[password]' : password
 					})
@@ -361,6 +247,7 @@ var Tumblr = update({}, AbstractSessionService, {
 			}).addCallback(function(){
 				self.updateSession();
 				self.user = user;
+				notify(self.name, getMessage('message.changeAccount.done'), self.ICON);
 			});
 		});
 	},
@@ -398,53 +285,6 @@ var Tumblr = update({}, AbstractSessionService, {
 		}
 	},
 	
-	/**
-	 * ログイン中のユーザーIDを取得する。
-	 *
-	 * @return {Deferred} ユーザーIDが返される。
-	 */
-	getCurrentId : function(){
-		switch (this.updateSession()){
-		case 'none':
-			return succeed('');
-			
-		case 'same':
-			if(this.id)
-				return succeed(this.id);
-			
-		case 'changed':
-			var self = this;
-			return request(Tumblr.TUMBLR_URL+'customize').addCallback(function(res){
-				var doc = convertToHTMLDocument(res.responseText);
-				return self.id = $x('id("edit_tumblelog_name")/@value', doc);
-			});
-		}
-	},
-	
-	/**
-	 * ポストや削除に使われるトークン(form_key)を取得する。
-	 * 結果はキャッシュされ、再ログインまで再取得は行われない。
-	 *
-	 * @return {Deferred} トークン(form_key)が返される。
-	 */
-	getToken : function(){
-		switch (this.updateSession()){
-		case 'none':
-			throw new Error(getMessage('error.notLoggedin'));
-			
-		case 'same':
-			if(this.token)
-				return succeed(this.token);
-			
-		case 'changed':
-			var self = this;
-			return request(Tumblr.TUMBLR_URL+'new/text').addCallback(function(res){
-				var doc = convertToHTMLDocument(res.responseText);
-				return self.token = $x('id("form_key")/@value', doc);
-			});
-		}
-	},
-	
 	getTumblelogs : function(){
 		return request(Tumblr.TUMBLR_URL+'new/text').addCallback(function(res){
 			var doc = convertToHTMLDocument(res.responseText);
@@ -456,17 +296,31 @@ var Tumblr = update({}, AbstractSessionService, {
 			});
 		});
 	},
+
+	getReblogPostInfo : function(reblogID, reblogKey, postType) {
+		return request(this.SVC_URL + 'post/fetch', {
+			responseType : 'json',
+			queryString  : {
+				reblog_id  : reblogID,
+				reblog_key : reblogKey,
+				post_type  : postType || ''
+			}
+		}).addCallback(({response : json}) => {
+			if (json.errors === false) {
+				let {post} = json;
+
+				if (post) {
+					return post;
+				}
+			}
+
+			throw new Error(json.error || getMessage('error.contentsNotFound'));
+		});
+	}
 });
 
 
 Tumblr.Regular = {
-	convertToModel : function(post, info){
-		return update(info, {
-			body  : getTextContent(post.querySelector('regular-body')),
-			title : getTextContent(post.querySelector('regular-title')),
-		});
-	},
-	
 	convertToForm : function(ps){
 		return {
 			'post[type]' : ps.type,
@@ -477,58 +331,29 @@ Tumblr.Regular = {
 }
 
 Tumblr.Photo = {
-	convertToModel : function(post, info){
-		var photoUrl500 = getTextContent(post.querySelector('photo-url[max-width="500"]'));
-		var image = Tombloo.Photo.getImageInfo(photoUrl500);
-		
-		return update(info, {
-			photoUrl500   : photoUrl500,
-			photoUrl400   : getTextContent(post.querySelector('photo-url[max-width="400"]')),
-			photoUrl250   : getTextContent(post.querySelector('photo-url[max-width="250"]')),
-			photoUrl100   : getTextContent(post.querySelector('photo-url[max-width="100"]')),
-			photoUrl75    : getTextContent(post.querySelector('photo-url[max-width="75"]')),
-			
-			body          : getTextContent(post.querySelector('photo-caption')),
-			imageId       : image.id,
-			extension     : image.extension,
-		});
-	},
-	
 	convertToForm : function(ps){
 		var form = {
 			'post[type]'  : ps.type,
-			't'           : ps.item,
-			'u'           : ps.pageUrl,
-			'post[two]'   : joinText([
-				(ps.item? ps.item.link(ps.pageUrl) : '') + (ps.author? ' (via ' + ps.author.link(ps.authorUrl) + ')' : ''), 
-				ps.description], '\n\n'),
+			'post[two]'   : joinText([ps.item || '',ps.description], '\n\n'),
 			'post[three]' : ps.pageUrl,
+			'editor_type' : 'rich',
+			MAX_FILE_SIZE: '10485760',
 		};
-		ps.file? (form['images[o1]'] = ps.file) : (form['photo_src'] = ps.itemUrl);
+		if(ps.file) {
+			form['photo[]'] = ps.file;
+		}
+		else {
+			form['photo_src[]'] = ps.itemUrl;
+            form['images[o1]'] = form['photo_src[]'];
+            form['post[photoset_layout]'] = '1';
+            form['post[photoset_order]'] = 'o1';
+		}
 		
 		return form;
-	},
-	
-	/**
-	 * 画像をダウンロードする。
-	 *
-	 * @param {nsIFile} file 保存先のローカルファイル。このファイル名が取得先のURLにも使われる。
-	 * @return {Deferred}
-	 */
-	download : function(file){
-		return download(Tumblr.MEDIA_URL + file.leafName, file);
 	},
 }
 
 Tumblr.Video = {
-	convertToModel : function(post, info){
-		return update(info, {
-			body    : getTextContent(post.querySelector('video-caption')),
-			source  : getTextContent(post.querySelector('video-source')),
-			player  : getTextContent(post.querySelector('video-player')),
-		});
-	},
-	
 	convertToForm : function(ps){
 		return {
 			'post[type]' : ps.type,
@@ -541,14 +366,6 @@ Tumblr.Video = {
 }
 
 Tumblr.Link = {
-	convertToModel : function(post, info){
-		return update(info, {
-			title  : getTextContent(post.querySelector('link-text')),
-			source : getTextContent(post.querySelector('link-url')),
-			body   : getTextContent(post.querySelector('link-description')),
-		});
-	},
-	
 	convertToForm : function(ps){
 		var thumb = getPref('thumbnailTemplate').replace(RegExp('{url}', 'g'), ps.pageUrl);
 		return {
@@ -561,13 +378,6 @@ Tumblr.Link = {
 }
 
 Tumblr.Conversation = {
-	convertToModel : function(post, info){
-		return update(info, {
-			title : getTextContent(post.querySelector('conversation-title')),
-			body  : getTextContent(post.querySelector('conversation-text')),
-		});
-	},
-	
 	convertToForm : function(ps){
 		return {
 			'post[type]' : ps.type,
@@ -578,13 +388,6 @@ Tumblr.Conversation = {
 }
 
 Tumblr.Quote = {
-	convertToModel : function(post, info){
-		return update(info, {
-			body   : getTextContent(post.querySelector('quote-text')),
-			source : getTextContent(post.querySelector('quote-source')),
-		});
-	},
-	
 	convertToForm : function(ps){
 		return {
 			'post[type]' : ps.type,
@@ -598,21 +401,36 @@ models.register(Tumblr);
 
 
 /*
- * Tumblrフォーム変更対応パッチ(2012/1/25周辺)
+ * Tumblrフォーム変更対応パッチ(2013/1/25周辺)
  * UAを古いAndroidにして旧フォームを取得。
  *
  * polygonplanetのコードを簡略化(パフォーマンス悪化の懸念あり)
- * https://gist.github.com/4643063
+ * https://gist.github.com/polygonplanet/4643063
+ *
+ * 2013年5月末頃の変更に対応する為、UAをIE8に変更
+ *
+ * 2015年1月29日の変更に対応する為、UAをFirefox for Android(Mobile)に変更
 */
+/*
 var request_ = request;
 request = function(url, opts){
 	if(/^https?:\/\/(?:\w+\.)*tumblr\..*\/(?:reblog\/|new\/\w+)/.test(url)){
+		if (!(opts && opts.responseType)) {
+			opts = updatetree(opts, {
+				responseType : 'text'
+			});
+		}
 		opts = updatetree(opts, {
 			headers : {
-				'User-Agent' : 'Mozilla/5.0 (Linux; U; Android 2.3.4; ja-jp; Build) Version/4.0 Mobile Safari/532'
+				'User-Agent' : 'Mozilla/5.0 (Android; Mobile; rv:35.0) Gecko/35.0 Firefox/35.0'
 			}
 		});
+		if (getCookieValue('www.tumblr.com', 'disable_mobile_layout') === '1') {
+			// via https://developer.mozilla.org/en-US/docs/Mozilla/Tech/XPCOM/Reference/Interface/nsICookieManager#remove()
+			CookieManager.remove('www.tumblr.com', 'disable_mobile_layout', '/', false);
+		}
 	}
 	
 	return request_(url, opts);
 };
+*/

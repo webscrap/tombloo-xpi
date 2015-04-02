@@ -546,8 +546,8 @@ function request(url, opts){
 		if(!multipart){
 			contents = queryString(contents);
 			channel.setUploadStream(
-				new StringInputStream(contents),
-				'application/x-www-form-urlencoded', -1);
+				new StringInputStream(contents.convertFromUnicode ? contents.convertFromUnicode() : contents), //将Contents转换为Unicode
+				((opts.headers && opts.headers['Content-Type']) ? opts.headers['Content-Type'] : 'application/x-www-form-urlencoded'), -1);
 		} else {
 			var boundary = '---------------------------' + (new Date().getTime());
 			var streams = [];
@@ -560,7 +560,7 @@ function request(url, opts){
 				if(!value.file){
 					streams.push([
 						'--' + boundary,
-						'Content-Disposition: form-data; name="' + name + '"',
+						'Content-Disposition: form-data; name="' + (name.convertFromUnicode ? name.covertFromUnicode() : name) + '"',
 						'',
 						value.convertFromUnicode? value.convertFromUnicode() : value,
 					]);
@@ -1854,6 +1854,9 @@ function convertToHTMLString(src, safe){
 	var me = arguments.callee;
 	
 	// 選択範囲の適切な外側まで含めてHTML文字列へ変換する(pre内選択なども正常処理される)
+	if(!src) {
+		return '';
+	}
 	var doc = src.ownerDocument || src.focusNode.ownerDocument;
 	var encoder = new HTMLCopyEncoder(doc, 'text/unicode', HTMLCopyEncoder.OutputRaw);
 	encoder[src.nodeType? 'setNode' : 'setSelection'](src);
